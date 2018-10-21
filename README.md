@@ -27,7 +27,7 @@ Run the ./test.sh script
 The script will run several scenarios:
 
 | # | Max used memory | Docker memory limit | Node memory limit | Expected outcome |
-|---|-----------------|----|----|---------|
+|---|----------------:|---:|---:|---------|
 | 1 |          386 MB | No | No | Success |
 | 2 |          233 MB | No | 240 MB | Success |
 | 3 |         >200 MB | No | 200 MB | We specified less memory than required and the process crashed with an out of memory error |
