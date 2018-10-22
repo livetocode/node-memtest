@@ -1,0 +1,9 @@
+FROM livetocode/node-memtest
+
+# to automatically generate the proper memory options to run the nodejs process within the cgroup memory limits.
+# Note that if you define the environment variable NODEJS_MEMORY_LIMIT, it will override the automatic behaviour.
+ADD ./nodejs.memory.limit.sh /tmp
+RUN NODE_EXE=`which node` && \
+    mv $NODE_EXE $NODE_EXE.original && \
+    mv /tmp/nodejs.memory.limit.sh $NODE_EXE && \
+    chmod +x $NODE_EXE
