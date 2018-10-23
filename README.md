@@ -6,15 +6,30 @@ Currently, the node process won't honour the cgroup limits and rely instead on t
 
 Which means that if the node process comes near to the cgroup limit, it won't have the chance to kick off its GC and might go across the limit, which will force the OS to kill the process.
 
-To avoid this issue, you can also specify how much memory your node app should use with the --max_old_space_sizes parameter.
+To avoid this issue, you can also specify how much memory your node app should use with the --max_old_space_size parameter.
 
-Note that when your node process exceeds the allocated memory defined by the --max_old_space_sizes parameter, it will terminate with an out of memory error. This is more explicit that having the process killed and will be captured in the logs.
+Note that when your node process exceeds the allocated memory defined by the --max_old_space_size parameter, it will terminate with an out of memory error. This is more explicit than having the process killed and will be captured in the logs.
 
-Finally, this memory setting is only useful if your process would cross the specified cgroup memory, otherwise the node process will
-regularly start its GC and release memory. 
-But if your process handles a heavy load, it might reach this constraint and be kilsled without the chance of exercizing its GC,
+Finally, this memory setting is only useful if your process would cross the specified cgroup memory limit, otherwise the node process will regularly start its GC and release memory. 
+But if your process handles a heavy load, it might reach this constraint and be killed without the chance of exercising its GC,
 which might happen more frequently if you try to give the minimum required memory to a container, because you want to run 
 as many containers as you can within a node (in a Kubernetes cluster for instance).
+
+# Solution
+
+I enhanced the script provided by Tom Spencer in his [blog](https://www.fiznool.com/blog/2016/10/01/running-a-node-dot-js-app-in-a-low-memory-environment/), in order to automatically detect the available memory in the cgroup. See [nodejs.memory.limit.sh](nodejs.memory.limit.sh)
+
+Also, instead of manually defining the --max_old_space_size parameter, which might be difficult when invoking npm tasks for instance, I'm proposing to patch the node behaviour by replacing the node executable with a bash script that will detect the memory available and call the real node process with the extra memory parameter.
+
+We can easily either put the script in a shared base image or subclass any Docker image containing a node app,
+in order to inject the script and make it fully tansparent.
+When the script applies, it will log what it does with the [NODEJS-OVERRIDE] prefix, and avoid any surprise or black magic!
+See [Dockerfile.patched](Dockerfile.patched) as an example.
+
+This is not a perfect solution, but it should work most of the time in containers since they usually just start a node process (sometimes via npm).
+
+See test #6 if you want to check how it works...
+
 
 # Build
 
@@ -22,7 +37,7 @@ The build.sh script will rebuild the image and push it to my repo.
 
 # Test
 
-*Requirements*: Run this script in a Linux server with Docker installed (MacOS does not properly honour the cgroup memory limit).
+*Requirements*: Run this script in a Linux server with Docker installed (MacOS does not strictly enforce the cgroup memory limit).
 
 Run the ./test.sh script
 
@@ -37,11 +52,16 @@ The script will run several scenarios:
 | 5 |          233 MB | 260 MB | 240 MB | Success, the process stayed within the memory constraints |
 | 6 |          233 MB | 280 MB | 251 MB | Success, the script interceptor automatically detected the memory constraints and enforced a 251MB node memory limit. |
 
+Note that the delta between the max used memory with and without memory constraints is 386-233=153 MB! 
+
+So, having the proper memory limits within a tight environment might be crucial, 
+if you want to avoid restarting the container too often on a heavy load.
 
 # References
 
 - https://www.fiznool.com/blog/2016/10/01/running-a-node-dot-js-app-in-a-low-memory-environment/
 - https://www.valentinog.com/blog/memory-usage-node-js/
+- https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/
 
 # Test output
 
@@ -227,7 +247,6 @@ WARNING: Your kernel does not support swap limit capabilities or the cgroup is n
 ###################< 6 - Running in Docker with memory limit = 260 MB and nodejs memory patch >#########################
 
 WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
-sh: 30: unknown operand
 [NODEJS-OVERRIDE] cgroup stats:     Memory limit |     Memory Usage | Memory available
 [NODEJS-OVERRIDE]                         280 Mb |             0 Mb |           279 Mb
 [NODEJS-OVERRIDE] Auto-generate NODEJS_MEMORY_LIMIT variable from available memory (279 Mb)

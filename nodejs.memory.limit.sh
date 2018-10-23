@@ -6,7 +6,6 @@
 #  - NODEJS_MEMORY_LIMIT: the maximum amount of memory a nodejs process can consume, in MB.
 #  - NODEJS_V8_ARGS: any additional args to
 #    pass to the v8 runtime.
-
 node_args=""
 ECHO_PREFIX="[NODEJS-OVERRIDE]"
 SCRIPT=$0
@@ -22,7 +21,7 @@ else
   exit 1
 fi
 
-if [[ $@ =~ --max_old_space_size= ]]; then
+if [[ $( echo $@ | grep -c -i -e "--max_old_space_size=" ) -gt 0 ]]; then
   echo "$ECHO_PREFIX max_old_space_size already provided"
 else
   # Auto detect memory constraints from cgroup because env variable NODEJS_MEMORY_LIMIT was not provided
